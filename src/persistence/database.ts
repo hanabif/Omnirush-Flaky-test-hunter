@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { InvestigationConfig, NormalizedTestResult } from '../domain/schemas.js';
+import type { InvestigationConfig, NormalizedTestResult, TestAnalysis } from '../domain/schemas.js';
 
 const migrations = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);`,
@@ -28,6 +28,15 @@ const migrations = [
    ALTER TABLE runs ADD COLUMN stdout_ref TEXT;
    ALTER TABLE runs ADD COLUMN stderr_ref TEXT;
    ALTER TABLE runs ADD COLUMN metadata_json TEXT;`,
+  `CREATE TABLE IF NOT EXISTS analysis_jobs (
+     id TEXT PRIMARY KEY, investigation_id TEXT NOT NULL REFERENCES investigations(id), test_id TEXT NOT NULL,
+     status TEXT NOT NULL, provider TEXT NOT NULL, created_at TEXT NOT NULL, completed_at TEXT, error TEXT,
+     UNIQUE(investigation_id, test_id)
+   );
+   CREATE TABLE IF NOT EXISTS analyses (
+     id INTEGER PRIMARY KEY AUTOINCREMENT, job_id TEXT NOT NULL REFERENCES analysis_jobs(id),
+     test_id TEXT NOT NULL, analysis_json TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(job_id)
+   );`,
 ];
 
 export class InvestigationDatabase {
@@ -128,6 +137,28 @@ export class InvestigationDatabase {
   investigationRunStatuses(investigationId: string): string[] {
     return this.db.prepare('SELECT status FROM runs WHERE investigation_id = ? ORDER BY attempt').all(investigationId)
       .map((row) => String((row as { status: string }).status));
+  }
+
+  getInvestigation(investigationId: string): { id: string; status: string; config: InvestigationConfig; toolVersion: string } | undefined {
+    const row = this.db.prepare('SELECT id, status, config_json, tool_version FROM investigations WHERE id = ?').get(investigationId) as { id: string; status: string; config_json: string; tool_version: string } | undefined;
+    return row ? { id: row.id, status: row.status, config: JSON.parse(row.config_json) as InvestigationConfig, toolVersion: row.tool_version } : undefined;
+  }
+
+  createAnalysisJob(id: string, investigationId: string, testId: string, provider: string): void {
+    this.db.prepare('INSERT INTO analysis_jobs(id, investigation_id, test_id, status, provider, created_at) VALUES (?, ?, ?, \'queued\', ?, ?)').run(id, investigationId, testId, provider, new Date().toISOString());
+  }
+
+  updateAnalysisJob(id: string, status: string, error?: string): void {
+    this.db.prepare('UPDATE analysis_jobs SET status = ?, completed_at = CASE WHEN ? IN (\'completed\', \'failed\') THEN ? ELSE completed_at END, error = ? WHERE id = ?').run(status, status, new Date().toISOString(), error ?? null, id);
+  }
+
+  insertAnalysis(jobId: string, testId: string, analysis: TestAnalysis): void {
+    this.db.prepare('INSERT INTO analyses(job_id, test_id, analysis_json, created_at) VALUES (?, ?, ?, ?)').run(jobId, testId, JSON.stringify(analysis), new Date().toISOString());
+  }
+
+  analyses(investigationId: string): TestAnalysis[] {
+    return this.db.prepare('SELECT a.analysis_json FROM analyses a JOIN analysis_jobs j ON j.id = a.job_id WHERE j.investigation_id = ? ORDER BY a.test_id').all(investigationId)
+      .map((row) => JSON.parse(String((row as { analysis_json: string }).analysis_json)) as TestAnalysis);
   }
 
   close(): void { this.db.close(); }

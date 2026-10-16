@@ -79,6 +79,9 @@ export type NormalizedTestResult = z.infer<typeof NormalizedTestResultSchema>;
 export type TestAnalysis = z.infer<typeof TestAnalysisSchema>;
 export type Event = z.infer<typeof EventSchema>;
 
+export const AnalysisJobStatusSchema = z.enum(['queued', 'running', 'completed', 'failed']);
+export type AnalysisJobStatus = z.infer<typeof AnalysisJobStatusSchema>;
+
 export const CommandSpecSchema = z.object({
   executable: nonEmpty,
   args: z.array(z.string()),
