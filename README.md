@@ -2,9 +2,9 @@
 
 Flaky Tests Hunter is an evidence-first tool for repeating tests in isolated environments, separating test failures from infrastructure failures, and producing actionable investigation reports.
 
-## Phase 0 status
+## Phase 1 status
 
-This branch contains the deterministic foundation described by the architecture plan:
+This branch contains the Phase 0 foundation plus the first one-run execution path:
 
 - strict TypeScript project with Node.js 22 pinned in `.nvmrc`;
 - Zod schemas for investigation configuration, runs, normalized results, events, and analysis responses;
@@ -12,8 +12,13 @@ This branch contains the deterministic foundation described by the architecture 
 - SQLite persistence using Node's built-in `node:sqlite` API;
 - bounded artifact storage and secret-redacting structured logging primitives;
 - deterministic demo fixture modes for stable, failing, flaky, timeout, and order-dependent behavior.
+- Docker daemon and local-image preflight checks;
+- secure Docker CLI execution with read-only repository mounts, disabled networking by default, resource limits, and bounded output;
+- one-run lifecycle persistence with queued, starting, running, and terminal states;
+- immutable stdout/stderr artifacts and lifecycle events;
+- suite-level npm test adapter and a conservative pytest JUnit adapter.
 
-Docker execution, scheduling, runner adapters, analysis providers, and the dashboard are intentionally deferred to later phases.
+Scheduling, analysis providers, reporting, and the dashboard are intentionally deferred to later phases.
 
 ## Requirements
 
@@ -28,7 +33,7 @@ npm ci
 cp .env.example .env
 ```
 
-No credentials are required for Phase 0.
+No credentials are required for Phase 1.
 
 ## Run checks
 
@@ -57,16 +62,27 @@ FIXTURE_MODE=failing npm test
 FIXTURE_MODE=flaky FIXTURE_OUTCOME=1 npm test
 ```
 
-## Docker
+## Phase 1 Docker execution
 
-Build and run the reproducible Phase 0 checks:
+Build and run the reproducible Phase 1 checks:
 
 ```sh
-docker build -t flaky-tests-hunter:phase-0 .
-docker run --rm flaky-tests-hunter:phase-0
+docker build -t flaky-tests-hunter:phase-1 .
+docker run --rm flaky-tests-hunter:phase-1
 ```
 
 The Docker image installs dependencies from the committed lockfile and runs the same test command as `make test`.
+
+The execution primitives are available to the TypeScript application through `src/execution/` and `src/services/one-run-service.ts`. Before a real investigation, call `preflight()` with an `InvestigationConfig`; it verifies the repository, Docker daemon, and image without starting the test command. `OneRunService` then records a run, invokes one disposable container, stores stdout/stderr artifacts, parses the adapter result, and finalizes the run record.
+
+The Docker executor defaults to:
+
+- `--network none` unless configuration explicitly enables networking;
+- read-only repository mount at `/workspace`;
+- no Docker socket mount and no inherited host environment;
+- read-only container root filesystem, dropped capabilities, and no-new-privileges;
+- CPU, memory, PID, timeout, and output limits;
+- `--pull=never`, so missing images are reported as infrastructure errors instead of being pulled implicitly.
 
 ## Deploy
 

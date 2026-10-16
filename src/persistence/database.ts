@@ -21,6 +21,13 @@ const migrations = [
     id TEXT PRIMARY KEY, investigation_id TEXT NOT NULL REFERENCES investigations(id), run_id TEXT,
     test_id TEXT, type TEXT NOT NULL, timestamp TEXT NOT NULL, payload_json TEXT NOT NULL
   );`,
+  `ALTER TABLE runs ADD COLUMN container_id TEXT;
+   ALTER TABLE runs ADD COLUMN failure_kind TEXT;
+   ALTER TABLE runs ADD COLUMN failure_message TEXT;
+   ALTER TABLE runs ADD COLUMN timed_out INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE runs ADD COLUMN stdout_ref TEXT;
+   ALTER TABLE runs ADD COLUMN stderr_ref TEXT;
+   ALTER TABLE runs ADD COLUMN metadata_json TEXT;`,
 ];
 
 export class InvestigationDatabase {
@@ -68,6 +75,27 @@ export class InvestigationDatabase {
   insertTestResult(result: NormalizedTestResult): void {
     this.db.prepare('INSERT INTO test_results(run_id, test_id, outcome, result_json) VALUES (?, ?, ?, ?)')
       .run(result.runId, result.testId, result.outcome, JSON.stringify(result));
+  }
+
+  updateRunStarting(runId: string, startedAt: string): void {
+    this.db.prepare("UPDATE runs SET status = 'starting', started_at = ? WHERE id = ? AND status = 'queued'").run(startedAt, runId);
+  }
+
+  updateRunRunning(runId: string, containerId: string): void {
+    this.db.prepare("UPDATE runs SET status = 'running', container_id = ? WHERE id = ? AND status IN ('queued', 'starting')").run(containerId, runId);
+  }
+
+  completeRun(runId: string, completion: { status: string; completedAt: string; durationMs: number; exitCode: number | null; failureKind?: string; failureMessage?: string; timedOut: boolean; stdoutRef?: string; stderrRef?: string; metadata?: Record<string, unknown> }): void {
+    const existing = this.db.prepare('SELECT status FROM runs WHERE id = ?').get(runId) as { status?: string } | undefined;
+    if (!existing) throw new Error(`Run not found: ${runId}`);
+    if (['passed', 'failed', 'timed_out', 'crashed', 'infra_error', 'cancelled', 'unparsed'].includes(existing.status ?? '')) return;
+    this.db.prepare('UPDATE runs SET status = ?, completed_at = ?, duration_ms = ?, exit_code = ?, failure_kind = ?, failure_message = ?, timed_out = ?, stdout_ref = ?, stderr_ref = ?, metadata_json = ? WHERE id = ?')
+      .run(completion.status, completion.completedAt, completion.durationMs, completion.exitCode, completion.failureKind ?? null, completion.failureMessage ?? null, completion.timedOut ? 1 : 0, completion.stdoutRef ?? null, completion.stderrRef ?? null, completion.metadata ? JSON.stringify(completion.metadata) : null, runId);
+  }
+
+  appendEvent(event: { id: string; investigationId: string; runId?: string; testId?: string; type: string; timestamp: string; payload: Record<string, unknown> }): void {
+    this.db.prepare('INSERT INTO events(id, investigation_id, run_id, test_id, type, timestamp, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(event.id, event.investigationId, event.runId ?? null, event.testId ?? null, event.type, event.timestamp, JSON.stringify(event.payload));
   }
 
   close(): void { this.db.close(); }
