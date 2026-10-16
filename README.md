@@ -2,9 +2,9 @@
 
 Flaky Tests Hunter is an evidence-first tool for repeating tests in isolated environments, separating test failures from infrastructure failures, and producing actionable investigation reports.
 
-## Phase 2 status
+## Phase 3 status
 
-This branch contains the Phase 0 foundation, Phase 1 execution path, and bounded repeated investigations:
+This branch contains the Phase 0 foundation, Phase 1 execution path, Phase 2 scheduler, and normalized classification:
 
 - strict TypeScript project with Node.js 22 pinned in `.nvmrc`;
 - Zod schemas for investigation configuration, runs, normalized results, events, and analysis responses;
@@ -21,6 +21,10 @@ This branch contains the Phase 0 foundation, Phase 1 execution path, and bounded
 - progress callbacks and append-only progress events;
 - cancellation of queued and active runs through abort signals;
 - recovery of interrupted `starting`/`running` records as explicit infrastructure errors.
+- normalized failure signatures that remove timestamps, UUIDs, temporary paths, and run identifiers while retaining raw failure messages;
+- per-test aggregate queries with pass/fail/timeout/crash counts, infrastructure-error counts, flake rates, first/last failures, and signature frequencies;
+- honest confidence and sample-completeness labels;
+- focused verification support for exactly 50 or 100 repetitions.
 
 Analysis providers, reporting, and the dashboard are intentionally deferred to later phases.
 
@@ -37,7 +41,7 @@ npm ci
 cp .env.example .env
 ```
 
-No credentials are required for Phase 2.
+No credentials are required for Phase 3.
 
 ## Run checks
 
@@ -105,6 +109,25 @@ FLAKY_HUNTER_REPETITIONS=50 FLAKY_HUNTER_CONCURRENCY=4 npm run phase2:smoke
 
 The scheduler emits JSON progress lines, keeps active workers at or below `concurrency`, preserves each attempt as a run record, and reports `completed`, `completed_with_errors`, or `cancelled` at investigation level. The scheduler API is in `src/services/scheduler.ts`; call `cancel()` on the scheduler instance to stop active work and mark queued attempts cancelled.
 
+## Phase 3 classification and verification
+
+Use `classifyInvestigation()` to aggregate normalized results for every observed test. Infrastructure errors remain outside the valid-attempt denominator. Labels are deliberately limited to `stable within sample`, `suspected flaky`, `consistently failing`, and `inconclusive`; confidence is evidence-based and does not claim statistical proof.
+
+Focused verification is provided by `VerificationService`:
+
+```ts
+const result = await new VerificationService(database, docker).run({
+  investigationId,
+  testId: 'suite:npm-test',
+  config: { ...config, repetitions: 50 },
+  adapter,
+  artifactStore,
+});
+// result.label: stable within sample | still flaky | inconclusive
+```
+
+Verification accepts only 50 or 100 repetitions and reports `inconclusive` when infrastructure errors, cancellation, or incomplete samples prevent a reliable sample conclusion.
+
 ## Deploy
 
-There is no deployable service in Phase 2. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
+There is no deployable service in Phase 3. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.

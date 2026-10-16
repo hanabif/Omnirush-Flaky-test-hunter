@@ -120,5 +120,15 @@ export class InvestigationDatabase {
     return this.db.prepare('SELECT attempt, status FROM runs WHERE investigation_id = ? ORDER BY attempt').all(investigationId) as Array<{ attempt: number; status: string }>;
   }
 
+  testResults(investigationId: string): NormalizedTestResult[] {
+    return this.db.prepare('SELECT tr.result_json FROM test_results tr JOIN runs r ON r.id = tr.run_id WHERE r.investigation_id = ? ORDER BY r.attempt, tr.test_id').all(investigationId)
+      .map((row) => JSON.parse(String((row as { result_json: string }).result_json)) as NormalizedTestResult);
+  }
+
+  investigationRunStatuses(investigationId: string): string[] {
+    return this.db.prepare('SELECT status FROM runs WHERE investigation_id = ? ORDER BY attempt').all(investigationId)
+      .map((row) => String((row as { status: string }).status));
+  }
+
   close(): void { this.db.close(); }
 }

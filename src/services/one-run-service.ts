@@ -4,6 +4,7 @@ import { ArtifactStore } from '../persistence/artifact-store.js';
 import type { InvestigationDatabase } from '../persistence/database.js';
 import type { DockerClient } from '../execution/docker-client.js';
 import type { TestRunnerAdapter } from '../execution/adapters/types.js';
+import { normalizeFailureSignature } from '../domain/failure-signature.js';
 
 export interface OneRunRequest { investigationId: string; runId: string; attempt: number; config: InvestigationConfig; adapter: TestRunnerAdapter; artifactStore: ArtifactStore; signal?: AbortSignal; }
 export interface RunRecord { id: string; status: RunStatus; exitCode: number | null; durationMs: number; stdoutRef?: string; stderrRef?: string; }
@@ -33,6 +34,7 @@ export class OneRunService {
       results = parsed.results;
       status = parsed.parseStatus === 'unparsed' ? 'unparsed' : execution.exitCode === 0 ? 'passed' : 'failed';
     }
+    results = results.map((result) => result.failureMessage && result.outcome !== 'passed' && !result.failureSignature ? { ...result, failureSignature: normalizeFailureSignature(result.failureMessage) } : result);
     for (const result of results) this.database.insertTestResult(result);
     this.database.completeRun(runId, { status, completedAt: new Date().toISOString(), durationMs: execution.durationMs, exitCode: execution.exitCode, ...(execution.failureKind ? { failureKind: execution.failureKind } : {}), ...(execution.failureMessage ? { failureMessage: execution.failureMessage } : {}), timedOut: execution.timedOut, stdoutRef, stderrRef, metadata: { adapter: adapter.id, testResultCount: results.length } });
     this.database.appendEvent({ id: randomUUID(), investigationId, runId, type: 'run.completed', timestamp: new Date().toISOString(), payload: { status, exitCode: execution.exitCode } });
