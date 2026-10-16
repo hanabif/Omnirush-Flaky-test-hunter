@@ -2,9 +2,9 @@
 
 Flaky Tests Hunter is an evidence-first tool for repeating tests in isolated environments, separating test failures from infrastructure failures, and producing actionable investigation reports.
 
-## Phase 4 status
+## Phase 5 status
 
-This branch contains the Phase 0 foundation, Phase 1 execution path, Phase 2 scheduler, Phase 3 classification, and evidence-backed analysis/reporting:
+This branch contains the Phase 0 foundation, Phase 1 execution path, Phase 2 scheduler, Phase 3 classification, Phase 4 analysis/reporting, and a usable CLI:
 
 - strict TypeScript project with Node.js 22 pinned in `.nvmrc`;
 - Zod schemas for investigation configuration, runs, normalized results, events, and analysis responses;
@@ -29,8 +29,11 @@ This branch contains the Phase 0 foundation, Phase 1 execution path, Phase 2 sch
 - schema-validated analysis provider contract and offline heuristic provider;
 - persisted analysis jobs and structured analyses;
 - deterministic Markdown and JSON report generation.
+- CLI project intake, status, inspection, report, run, and Docker diagnostics commands;
+- automatic npm/pytest project detection and validated config generation;
+- human-readable progress output for repeated investigations.
 
-The dashboard and hosted AI-provider integration are intentionally deferred to later phases. The provider interface is ready for an explicitly configured model without requiring credentials for local development.
+The dashboard and hosted AI-provider integration are intentionally deferred. The provider interface is ready for an explicitly configured model without requiring credentials for local development.
 
 ## Requirements
 
@@ -45,7 +48,7 @@ npm ci
 cp .env.example .env
 ```
 
-No credentials are required for Phase 4.
+No credentials are required for Phase 5.
 
 ## Run checks
 
@@ -147,6 +150,28 @@ const paths = await writeReports(database, investigationId, 'data/report');
 
 Reports can be regenerated without rerunning tests. Markdown includes the stability table, counts, flake rates, confidence, hypotheses, observed facts, recommendations, and limitations. JSON contains the same structured aggregates and validated analyses.
 
+## Phase 5 CLI
+
+Build the CLI and use the project intake wizard:
+
+```sh
+npm run build
+node dist/src/cli/index.js init fixtures/flaky-demo-repo
+node dist/src/cli/index.js doctor flaky-hunter.config.json
+node dist/src/cli/index.js run --config flaky-hunter.config.json
+```
+
+The CLI also provides:
+
+```sh
+node dist/src/cli/index.js status <investigation-id>
+node dist/src/cli/index.js inspect <investigation-id>
+node dist/src/cli/index.js report <investigation-id> --format markdown
+node dist/src/cli/index.js report <investigation-id> --format json
+```
+
+The database defaults to `data/flaky-hunter.db`; override it with `FLAKY_HUNTER_DB`. `init` detects `npm test` or pytest projects and writes a validated local config. `doctor` checks the repository, Docker daemon, and configured image without running tests.
+
 ## Deploy
 
-There is no deployable service in Phase 4. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
+There is no deployable service in Phase 5. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.

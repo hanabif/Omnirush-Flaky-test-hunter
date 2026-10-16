@@ -5,7 +5,7 @@
   "description": "Evidence-first detection and investigation of flaky tests.",
   "type": "module",
   "bin": {
-    "flaky-hunter": "dist/cli/index.js"
+    "flaky-hunter": "dist/src/cli/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "phase1:smoke": "tsx scripts/phase1-smoke.ts",
-    "phase2:smoke": "tsx scripts/phase2-smoke.ts"
+    "phase2:smoke": "tsx scripts/phase2-smoke.ts",
+    "cli": "node dist/src/cli/index.js"
   },
   "engines": {
     "node": ">=22 <23"
