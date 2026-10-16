@@ -98,5 +98,27 @@ export class InvestigationDatabase {
       .run(event.id, event.investigationId, event.runId ?? null, event.testId ?? null, event.type, event.timestamp, JSON.stringify(event.payload));
   }
 
+  hasRun(runId: string): boolean { return Boolean(this.db.prepare('SELECT 1 AS found FROM runs WHERE id = ?').get(runId)); }
+
+  cancelRun(runId: string, message = 'Cancelled by user'): void {
+    this.db.prepare("UPDATE runs SET status = 'cancelled', completed_at = ?, failure_kind = 'executor_error', failure_message = ? WHERE id = ? AND status IN ('queued', 'starting', 'running')")
+      .run(new Date().toISOString(), message, runId);
+  }
+
+  updateInvestigationStatus(id: string, status: string): void {
+    this.db.prepare('UPDATE investigations SET status = ?, started_at = CASE WHEN ? = \'running\' AND started_at IS NULL THEN ? ELSE started_at END, completed_at = CASE WHEN ? IN (\'completed\', \'completed_with_errors\', \'cancelled\') THEN ? ELSE completed_at END WHERE id = ?')
+      .run(status, status, new Date().toISOString(), status, new Date().toISOString(), id);
+  }
+
+  recoverInterruptedRuns(investigationId: string): number {
+    const result = this.db.prepare("UPDATE runs SET status = 'infra_error', completed_at = ?, failure_kind = 'executor_error', failure_message = 'Recovered after interrupted worker' WHERE investigation_id = ? AND status IN ('starting', 'running')")
+      .run(new Date().toISOString(), investigationId);
+    return Number(result.changes);
+  }
+
+  runStatuses(investigationId: string): Array<{ attempt: number; status: string }> {
+    return this.db.prepare('SELECT attempt, status FROM runs WHERE investigation_id = ? ORDER BY attempt').all(investigationId) as Array<{ attempt: number; status: string }>;
+  }
+
   close(): void { this.db.close(); }
 }

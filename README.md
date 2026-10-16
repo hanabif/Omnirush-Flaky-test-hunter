@@ -2,9 +2,9 @@
 
 Flaky Tests Hunter is an evidence-first tool for repeating tests in isolated environments, separating test failures from infrastructure failures, and producing actionable investigation reports.
 
-## Phase 1 status
+## Phase 2 status
 
-This branch contains the Phase 0 foundation plus the first one-run execution path:
+This branch contains the Phase 0 foundation, Phase 1 execution path, and bounded repeated investigations:
 
 - strict TypeScript project with Node.js 22 pinned in `.nvmrc`;
 - Zod schemas for investigation configuration, runs, normalized results, events, and analysis responses;
@@ -17,8 +17,12 @@ This branch contains the Phase 0 foundation plus the first one-run execution pat
 - one-run lifecycle persistence with queued, starting, running, and terminal states;
 - immutable stdout/stderr artifacts and lifecycle events;
 - suite-level npm test adapter and a conservative pytest JUnit adapter.
+- bounded worker-pool scheduling with configurable repetitions and concurrency;
+- progress callbacks and append-only progress events;
+- cancellation of queued and active runs through abort signals;
+- recovery of interrupted `starting`/`running` records as explicit infrastructure errors.
 
-Scheduling, analysis providers, reporting, and the dashboard are intentionally deferred to later phases.
+Analysis providers, reporting, and the dashboard are intentionally deferred to later phases.
 
 ## Requirements
 
@@ -33,7 +37,7 @@ npm ci
 cp .env.example .env
 ```
 
-No credentials are required for Phase 1.
+No credentials are required for Phase 2.
 
 ## Run checks
 
@@ -90,6 +94,17 @@ The Docker executor defaults to:
 - CPU, memory, PID, timeout, and output limits;
 - `--pull=never`, so missing images are reported as infrastructure errors instead of being pulled implicitly.
 
+## Phase 2 repeated investigations
+
+Run a real Docker-backed repeated campaign using the scheduler:
+
+```sh
+npm run phase2:smoke
+FLAKY_HUNTER_REPETITIONS=50 FLAKY_HUNTER_CONCURRENCY=4 npm run phase2:smoke
+```
+
+The scheduler emits JSON progress lines, keeps active workers at or below `concurrency`, preserves each attempt as a run record, and reports `completed`, `completed_with_errors`, or `cancelled` at investigation level. The scheduler API is in `src/services/scheduler.ts`; call `cancel()` on the scheduler instance to stop active work and mark queued attempts cancelled.
+
 ## Deploy
 
-There is no deployable service in Phase 0. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
+There is no deployable service in Phase 2. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
