@@ -1,0 +1,29 @@
+{
+  "name": "flaky-tests-hunter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Evidence-first detection and investigation of flaky tests.",
+  "type": "module",
+  "bin": {
+    "flaky-hunter": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=22 <23"
+  },
+  "dependencies": {
+    "pino": "9.6.0",
+    "zod": "3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.4",
+    "tsx": "4.19.3",
+    "typescript": "5.7.3",
+    "vitest": "3.0.7"
+  }
+}
