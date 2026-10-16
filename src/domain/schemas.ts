@@ -103,6 +103,7 @@ export interface DockerRunSpec {
   cpus?: number;
   memoryBytes?: number;
   pidsLimit?: number;
+  signal?: AbortSignal;
 }
 
 export interface DockerExecutionResult {
@@ -110,6 +111,7 @@ export interface DockerExecutionResult {
   containerId?: string;
   exitCode: number | null;
   timedOut: boolean;
+  cancelled?: boolean;
   failureKind?: ContainerFailureKind;
   failureMessage?: string;
   stdout: string;

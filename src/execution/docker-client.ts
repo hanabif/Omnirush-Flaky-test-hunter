@@ -11,21 +11,25 @@ export interface DockerClient {
 
 export interface ProcessResult { exitCode: number | null; stdout: string; stderr: string; timedOut: boolean; }
 
-export function runProcess(executable: string, args: readonly string[], timeoutMs: number): Promise<ProcessResult> {
+export function runProcess(executable: string, args: readonly string[], timeoutMs: number, signal?: AbortSignal): Promise<ProcessResult> {
   return new Promise((resolve) => {
     const child = spawn(executable, [...args], { windowsHide: true });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); }, timeoutMs);
+    const abort = () => { if (!timedOut) child.kill('SIGTERM'); };
+    signal?.addEventListener('abort', abort, { once: true });
     child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
     child.on('error', (error: NodeJS.ErrnoException) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       resolve({ exitCode: null, stdout: Buffer.concat(stdout).toString(), stderr: error.message, timedOut });
     });
     child.on('close', (exitCode) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
       resolve({ exitCode, stdout: Buffer.concat(stdout).toString(), stderr: Buffer.concat(stderr).toString(), timedOut });
     });
   });
@@ -64,12 +68,13 @@ export class CliDockerClient implements DockerClient {
     for (const [key, value] of Object.entries(spec.command.env)) args.push('--env', `${key}=${value}`);
     args.push(spec.image, spec.command.executable, ...spec.command.args);
     const startedAt = Date.now();
-    const result = await runProcess('docker', args, spec.timeoutMs);
+    const result = await runProcess('docker', args, spec.timeoutMs, spec.signal);
     return {
       started: result.exitCode !== null || result.timedOut,
       containerId: name,
       exitCode: result.exitCode,
       timedOut: result.timedOut,
+      cancelled: Boolean(spec.signal?.aborted) && !result.timedOut,
       ...(result.timedOut ? { failureKind: 'executor_timeout' as const } : result.exitCode === null ? { failureKind: 'container_start_failed' as const } : {}),
       ...(result.exitCode === null ? { failureMessage: result.stderr } : {}),
       stdout: truncate(result.stdout, spec.maxOutputBytes),

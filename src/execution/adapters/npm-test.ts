@@ -11,7 +11,7 @@ export class NpmTestAdapter implements TestRunnerAdapter {
   }
 
   buildCommand(config: InvestigationConfig): CommandSpec {
-    return { executable: 'npm', args: ['test'], cwd: '/workspace', env: { CI: 'true' } };
+    return { executable: 'npm', args: config.testFilter ? ['test', '--', config.testFilter] : ['test'], cwd: '/workspace', env: { CI: 'true' } };
   }
 
   async parseResult(output: OutputBundle): Promise<AdapterParseResult> {
