@@ -20,6 +20,19 @@ describe('phase 6 dashboard server', () => {
     const page = await fetch(base);
     expect(page.status).toBe(200);
     expect(await page.text()).toContain('Flaky Tests Hunter');
+    const created = await fetch(`${base}/api/investigations`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        repositoryPath: '/workspace/repo', command: 'npm test', workingDirectory: '/workspace',
+        image: 'flaky-tests-hunter:test', repetitions: 1, concurrency: 1, timeoutMs: 1000,
+        network: 'none', envAllowlist: [], orderMode: 'default',
+      }),
+    });
+    const { id } = await created.json();
+    const exported = await fetch(`${base}/api/investigations/${id}/report?format=json`);
+    expect(exported.status).toBe(200);
+    expect(exported.headers.get('content-disposition')).toBe(`attachment; filename="flaky-hunter-${id}.json"`);
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     const database = new InvestigationDatabase(process.env.FLAKY_HUNTER_DB);
     database.close();

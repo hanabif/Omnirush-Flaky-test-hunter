@@ -14,6 +14,7 @@ import { NpmTestAdapter } from '../execution/adapters/npm-test.js';
 import { PytestAdapter } from '../execution/adapters/pytest.js';
 import { CliDockerClient } from '../execution/docker-client.js';
 import { preflight } from '../execution/preflight.js';
+import { VerificationService } from '../services/verification.js';
 
 const databaseFile = resolve(process.env.FLAKY_HUNTER_DB ?? 'data/flaky-hunter.db');
 mkdirSync(resolve(databaseFile, '..'), { recursive: true });
@@ -51,9 +52,29 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL)
   }
   if (url.pathname === `/api/investigations/${id}/cancel` && request.method === 'POST') { const scheduler = schedulers.get(id); if (!scheduler) return json(response, 409, { error: 'Investigation is not running' }); scheduler.cancel(); return json(response, 202, { id, status: 'cancelling' }); }
   if (url.pathname === `/api/investigations/${id}/analyses` && request.method === 'POST') { const input = await body(request) as { testId?: string }; if (!input.testId) return json(response, 400, { error: 'testId is required' }); return json(response, 201, await new AnalysisService(database, new HeuristicAnalysisProvider()).analyze(id, input.testId)); }
+  if (url.pathname === `/api/investigations/${id}/verify` && request.method === 'POST') {
+    const input = await body(request) as { testId?: string; repetitions?: number };
+    if (!input.testId || ![50, 100].includes(input.repetitions ?? 0)) return json(response, 400, { error: 'testId and repetitions (50 or 100) are required' });
+    const verificationId = `${id}-verification-${randomUUID()}`;
+    const repetitions = input.repetitions;
+    if (repetitions === undefined) return json(response, 400, { error: 'testId and repetitions (50 or 100) are required' });
+    const config = { ...investigation.config, repetitions };
+    const report = await preflight(config, docker); if (!report.passed) return json(response, 422, { error: 'Preflight failed', report });
+    database.insertInvestigation(verificationId, config);
+    const adapter = config.command.startsWith('npm') ? new NpmTestAdapter() : new PytestAdapter();
+    const result = await new VerificationService(database, docker).run({ investigationId: verificationId, testId: input.testId, config, adapter, artifactStore: new ArtifactStore(resolve(process.env.FLAKY_HUNTER_ARTIFACTS ?? 'data/artifacts')) });
+    return json(response, 201, { verificationId, ...result });
+  }
+  const artifactMatch = url.pathname.match(new RegExp(`^/api/investigations/${id}/runs/([^/]+)/(stdout|stderr)$`));
+  if (artifactMatch && request.method === 'GET') {
+    const run = database.runs(id).find((item) => item.id === artifactMatch[1]); const reference = artifactMatch[2] === 'stdout' ? run?.stdout_ref : run?.stderr_ref;
+    if (typeof reference !== 'string') return json(response, 404, { error: 'Artifact not found' });
+    try { const content = await new ArtifactStore(resolve(process.env.FLAKY_HUNTER_ARTIFACTS ?? 'data/artifacts')).read(reference); response.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' }); response.end(content); } catch { return json(response, 404, { error: 'Artifact is unavailable' }); }
+    return;
+  }
   if (url.pathname === `/api/investigations/${id}` && request.method === 'GET') return json(response, 200, { report: buildReport(database, id), progress: { total: investigation.config.repetitions, completed: database.runs(id).filter((run) => ['passed', 'failed', 'timed_out', 'crashed', 'infra_error', 'cancelled', 'unparsed'].includes(String(run.status))).length, active: database.runCounts(id).running ?? 0, queued: database.runCounts(id).queued ?? 0 }, runs: database.runs(id), events: database.events(id) });
   if (url.pathname === `/api/investigations/${id}/events` && request.method === 'GET') return json(response, 200, { events: database.events(id) });
-  if (url.pathname === `/api/investigations/${id}/report` && request.method === 'GET') { const report = buildReport(database, id); if (url.searchParams.get('format') === 'markdown') { response.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' }); response.end(renderMarkdown(report)); } else json(response, 200, report); return; }
+  if (url.pathname === `/api/investigations/${id}/report` && request.method === 'GET') { const report = buildReport(database, id); if (url.searchParams.get('format') === 'markdown') { response.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' }); response.end(renderMarkdown(report)); } else { response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="flaky-hunter-${id}.json"` }); response.end(JSON.stringify(report)); } return; }
   return json(response, 404, { error: 'Not found' });
 }
 
