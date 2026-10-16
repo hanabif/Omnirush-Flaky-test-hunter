@@ -174,9 +174,9 @@ The database defaults to `data/flaky-hunter.db`; override it with `FLAKY_HUNTER_
 
 ## Deploy
 
-## Phase 6 local dashboard
+## Phase 7 investigation workflow
 
-Phase 6 adds a lightweight local dashboard without introducing a frontend framework or external runtime service. It serves the persisted investigations, progress, stability aggregates, and analyses through a local Node HTTP server.
+Phase 7 extends the lightweight local dashboard into the main investigation workflow without introducing a frontend framework or external runtime service. It serves persisted investigations, supports configuration, validates Docker, starts and cancels campaigns, creates analyses, and exports reports.
 
 Start it from the repository root:
 
@@ -192,6 +192,8 @@ http://127.0.0.1:4173
 
 The dashboard polls the local API every five seconds. It shows an empty state when there are no investigations, a clear API error state when the server cannot read the database, investigation cards with progress and failure counts, and a detail view with stability classifications, flake rates, confidence, run progress, and analysis summaries.
 
+Use **New investigation** to configure repository path, command, working directory, Docker image, repetitions, concurrency, timeout, network, test filter, seed, and order mode. **Validate Docker setup** performs preflight without starting a run. After creation, open the investigation card to start or cancel it, analyze normalized test results, and export Markdown or JSON reports.
+
 The read-only API is available at:
 
 ```text
@@ -200,8 +202,13 @@ GET /api/investigations
 GET /api/investigations/:id
 GET /api/investigations/:id/events
 GET /api/investigations/:id/report?format=json|markdown
+POST /api/preflight
+POST /api/investigations/:id/preflight
+POST /api/investigations/:id/run
+POST /api/investigations/:id/cancel
+POST /api/investigations/:id/analyses
 ```
 
 The server binds to `127.0.0.1` by default. Set `HOST`, `PORT`, and `FLAKY_HUNTER_DB` to change local settings. The dashboard does not expose arbitrary filesystem paths or credentials.
 
-There is no hosted deployable service in Phase 6. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
+There is no hosted deployable service in Phase 7. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
