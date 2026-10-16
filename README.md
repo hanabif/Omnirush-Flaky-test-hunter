@@ -207,8 +207,13 @@ POST /api/investigations/:id/preflight
 POST /api/investigations/:id/run
 POST /api/investigations/:id/cancel
 POST /api/investigations/:id/analyses
+POST /api/investigations/:id/verify
+GET /api/investigations/:id/runs/:runId/stdout
+GET /api/investigations/:id/runs/:runId/stderr
 ```
 
 The server binds to `127.0.0.1` by default. Set `HOST`, `PORT`, and `FLAKY_HUNTER_DB` to change local settings. The dashboard does not expose arbitrary filesystem paths or credentials.
+
+Focused verification is available through the API with a `testId` and either 50 or 100 repetitions. Artifact endpoints only serve stdout/stderr references belonging to the requested investigation run.
 
 There is no hosted deployable service in Phase 7. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
