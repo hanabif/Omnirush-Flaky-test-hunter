@@ -2,9 +2,9 @@
 
 Flaky Tests Hunter is an evidence-first tool for repeating tests in isolated environments, separating test failures from infrastructure failures, and producing actionable investigation reports.
 
-## Phase 3 status
+## Phase 4 status
 
-This branch contains the Phase 0 foundation, Phase 1 execution path, Phase 2 scheduler, and normalized classification:
+This branch contains the Phase 0 foundation, Phase 1 execution path, Phase 2 scheduler, Phase 3 classification, and evidence-backed analysis/reporting:
 
 - strict TypeScript project with Node.js 22 pinned in `.nvmrc`;
 - Zod schemas for investigation configuration, runs, normalized results, events, and analysis responses;
@@ -25,8 +25,12 @@ This branch contains the Phase 0 foundation, Phase 1 execution path, Phase 2 sch
 - per-test aggregate queries with pass/fail/timeout/crash counts, infrastructure-error counts, flake rates, first/last failures, and signature frequencies;
 - honest confidence and sample-completeness labels;
 - focused verification support for exactly 50 or 100 repetitions.
+- bounded evidence selection for analysis context;
+- schema-validated analysis provider contract and offline heuristic provider;
+- persisted analysis jobs and structured analyses;
+- deterministic Markdown and JSON report generation.
 
-Analysis providers, reporting, and the dashboard are intentionally deferred to later phases.
+The dashboard and hosted AI-provider integration are intentionally deferred to later phases. The provider interface is ready for an explicitly configured model without requiring credentials for local development.
 
 ## Requirements
 
@@ -41,7 +45,7 @@ npm ci
 cp .env.example .env
 ```
 
-No credentials are required for Phase 3.
+No credentials are required for Phase 4.
 
 ## Run checks
 
@@ -128,6 +132,21 @@ const result = await new VerificationService(database, docker).run({
 
 Verification accepts only 50 or 100 repetitions and reports `inconclusive` when infrastructure errors, cancellation, or incomplete samples prevent a reliable sample conclusion.
 
+## Phase 4 analysis and reports
+
+The analysis service selects at most three failure examples and two passing examples, bounds the evidence text, validates provider output with `TestAnalysisSchema`, and persists the result only after validation. The default `HeuristicAnalysisProvider` is offline and clearly reports limitations rather than claiming a proven root cause.
+
+Generate deterministic report artifacts from persisted state:
+
+```ts
+const analysis = await new AnalysisService(database, new HeuristicAnalysisProvider())
+  .analyze(investigationId, 'suite:npm-test');
+const paths = await writeReports(database, investigationId, 'data/report');
+// data/report/report.md and data/report/report.json
+```
+
+Reports can be regenerated without rerunning tests. Markdown includes the stability table, counts, flake rates, confidence, hypotheses, observed facts, recommendations, and limitations. JSON contains the same structured aggregates and validated analyses.
+
 ## Deploy
 
-There is no deployable service in Phase 3. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
+There is no deployable service in Phase 4. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
