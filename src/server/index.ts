@@ -1,16 +1,27 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { InvestigationConfigSchema } from '../domain/schemas.js';
 import { buildReport, renderMarkdown } from '../reporting/report.js';
 import { InvestigationDatabase } from '../persistence/database.js';
+import { InvestigationScheduler } from '../services/scheduler.js';
+import { AnalysisService, HeuristicAnalysisProvider } from '../analysis/analysis-service.js';
+import { ArtifactStore } from '../persistence/artifact-store.js';
+import { NpmTestAdapter } from '../execution/adapters/npm-test.js';
+import { PytestAdapter } from '../execution/adapters/pytest.js';
+import { CliDockerClient } from '../execution/docker-client.js';
+import { preflight } from '../execution/preflight.js';
 
-const database = new InvestigationDatabase(resolve(process.env.FLAKY_HUNTER_DB ?? 'data/flaky-hunter.db'));
+const databaseFile = resolve(process.env.FLAKY_HUNTER_DB ?? 'data/flaky-hunter.db');
+mkdirSync(resolve(databaseFile, '..'), { recursive: true });
+const database = new InvestigationDatabase(databaseFile);
 const toolVersion = '0.1.0';
 const webRoot = existsSync(resolve('src/web')) ? resolve('src/web') : resolve('dist/src/web');
+const schedulers = new Map<string, InvestigationScheduler>();
+const docker = new CliDockerClient();
 
 function json(response: ServerResponse, status: number, value: unknown): void { response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' }); response.end(JSON.stringify(value)); }
 async function body(request: IncomingMessage): Promise<unknown> { let text = ''; for await (const chunk of request) text += String(chunk); return text ? JSON.parse(text) : {}; }
@@ -18,6 +29,7 @@ function idFrom(pathname: string): string | undefined { return pathname.match(/^
 
 async function api(request: IncomingMessage, response: ServerResponse, url: URL): Promise<void> {
   if (url.pathname === '/api/health') return json(response, 200, { ok: true, toolVersion });
+  if (url.pathname === '/api/preflight' && request.method === 'POST') return json(response, 200, await preflight(InvestigationConfigSchema.parse(await body(request)), docker));
   if (url.pathname === '/api/investigations' && request.method === 'GET') return json(response, 200, { investigations: database.listInvestigations().map((item) => ({ id: item.id, status: item.status, createdAt: item.createdAt, completedAt: item.completedAt, repositoryPath: item.config.repositoryPath, command: item.config.command, repetitions: item.config.repetitions, counts: item.counts })) });
   if (url.pathname === '/api/investigations' && request.method === 'POST') {
     const config = InvestigationConfigSchema.parse(await body(request));
@@ -27,6 +39,18 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL)
   if (!id) return json(response, 404, { error: 'Not found' });
   const investigation = database.getInvestigation(id);
   if (!investigation) return json(response, 404, { error: `Investigation not found: ${id}` });
+  if (url.pathname === `/api/investigations/${id}/preflight` && request.method === 'POST') return json(response, 200, await preflight(investigation.config, docker));
+  if (url.pathname === `/api/investigations/${id}/run` && request.method === 'POST') {
+    if (schedulers.has(id)) return json(response, 409, { error: 'Investigation is already running' });
+    const report = await preflight(investigation.config, docker);
+    if (!report.passed) return json(response, 422, { error: 'Preflight failed', report });
+    const scheduler = new InvestigationScheduler(database, docker); schedulers.set(id, scheduler);
+    const adapter = investigation.config.command.startsWith('npm') ? new NpmTestAdapter() : new PytestAdapter();
+    void scheduler.start({ investigationId: id, config: investigation.config, adapter, artifactStore: new ArtifactStore(resolve(process.env.FLAKY_HUNTER_ARTIFACTS ?? 'data/artifacts')) }).finally(() => schedulers.delete(id));
+    return json(response, 202, { id, status: 'running' });
+  }
+  if (url.pathname === `/api/investigations/${id}/cancel` && request.method === 'POST') { const scheduler = schedulers.get(id); if (!scheduler) return json(response, 409, { error: 'Investigation is not running' }); scheduler.cancel(); return json(response, 202, { id, status: 'cancelling' }); }
+  if (url.pathname === `/api/investigations/${id}/analyses` && request.method === 'POST') { const input = await body(request) as { testId?: string }; if (!input.testId) return json(response, 400, { error: 'testId is required' }); return json(response, 201, await new AnalysisService(database, new HeuristicAnalysisProvider()).analyze(id, input.testId)); }
   if (url.pathname === `/api/investigations/${id}` && request.method === 'GET') return json(response, 200, { report: buildReport(database, id), progress: { total: investigation.config.repetitions, completed: database.runs(id).filter((run) => ['passed', 'failed', 'timed_out', 'crashed', 'infra_error', 'cancelled', 'unparsed'].includes(String(run.status))).length, active: database.runCounts(id).running ?? 0, queued: database.runCounts(id).queued ?? 0 }, runs: database.runs(id), events: database.events(id) });
   if (url.pathname === `/api/investigations/${id}/events` && request.method === 'GET') return json(response, 200, { events: database.events(id) });
   if (url.pathname === `/api/investigations/${id}/report` && request.method === 'GET') { const report = buildReport(database, id); if (url.searchParams.get('format') === 'markdown') { response.writeHead(200, { 'content-type': 'text/markdown; charset=utf-8' }); response.end(renderMarkdown(report)); } else json(response, 200, report); return; }
