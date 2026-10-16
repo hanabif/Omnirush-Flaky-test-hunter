@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Flaky Tests Hunter</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+  <header class="topbar"><div><p class="eyebrow">EVIDENCE-FIRST TEST INVESTIGATION</p><h1>Flaky Tests Hunter</h1></div><button id="refresh">Refresh</button></header>
+  <main class="shell">
+    <section class="hero"><div><p class="eyebrow">LOCAL CONTROL ROOM</p><h2>Find the signal inside unreliable CI.</h2><p class="muted">Monitor repeated runs, inspect stability evidence, and export reports without losing the raw facts.</p></div><div class="hero-mark">FT<br><span>H</span></div></section>
+    <section id="error" class="notice error hidden"></section>
+    <section class="section-head"><div><p class="eyebrow">INVESTIGATIONS</p><h2>Recent campaigns</h2></div><span id="updated" class="muted"></span></section>
+    <section id="investigations" class="cards"><div class="empty">Loading investigations…</div></section>
+    <section id="detail" class="detail hidden"></section>
+  </main>
+  <script src="dashboard.js"></script>
+</body>
+</html>

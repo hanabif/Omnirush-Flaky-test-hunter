@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "phase1:smoke": "tsx scripts/phase1-smoke.ts",
     "phase2:smoke": "tsx scripts/phase2-smoke.ts",
-    "cli": "node dist/src/cli/index.js"
+    "cli": "node dist/src/cli/index.js",
+    "dashboard": "tsx src/server/index.ts"
   },
   "engines": {
     "node": ">=22 <23"

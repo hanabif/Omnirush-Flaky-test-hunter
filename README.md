@@ -174,4 +174,34 @@ The database defaults to `data/flaky-hunter.db`; override it with `FLAKY_HUNTER_
 
 ## Deploy
 
-There is no deployable service in Phase 5. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
+## Phase 6 local dashboard
+
+Phase 6 adds a lightweight local dashboard without introducing a frontend framework or external runtime service. It serves the persisted investigations, progress, stability aggregates, and analyses through a local Node HTTP server.
+
+Start it from the repository root:
+
+```sh
+npm run dashboard
+```
+
+Open:
+
+```text
+http://127.0.0.1:4173
+```
+
+The dashboard polls the local API every five seconds. It shows an empty state when there are no investigations, a clear API error state when the server cannot read the database, investigation cards with progress and failure counts, and a detail view with stability classifications, flake rates, confidence, run progress, and analysis summaries.
+
+The read-only API is available at:
+
+```text
+GET /api/health
+GET /api/investigations
+GET /api/investigations/:id
+GET /api/investigations/:id/events
+GET /api/investigations/:id/report?format=json|markdown
+```
+
+The server binds to `127.0.0.1` by default. Set `HOST`, `PORT`, and `FLAKY_HUNTER_DB` to change local settings. The dashboard does not expose arbitrary filesystem paths or credentials.
+
+There is no hosted deployable service in Phase 6. For a later local deployment, build the image above and publish it to the team's approved registry; do not put registry credentials in this repository.
