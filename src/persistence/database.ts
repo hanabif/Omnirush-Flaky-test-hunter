@@ -144,6 +144,25 @@ export class InvestigationDatabase {
     return row ? { id: row.id, status: row.status, config: JSON.parse(row.config_json) as InvestigationConfig, toolVersion: row.tool_version } : undefined;
   }
 
+  listInvestigations(): Array<{ id: string; status: string; config: InvestigationConfig; createdAt: string; completedAt?: string; counts: Record<string, number> }> {
+    const rows = this.db.prepare('SELECT id, status, config_json, created_at, completed_at FROM investigations ORDER BY created_at DESC').all() as Array<{ id: string; status: string; config_json: string; created_at: string; completed_at?: string }>;
+    return rows.map((row) => ({ id: row.id, status: row.status, config: JSON.parse(row.config_json) as InvestigationConfig, createdAt: row.created_at, ...(row.completed_at ? { completedAt: row.completed_at } : {}), counts: this.runCounts(row.id) }));
+  }
+
+  runCounts(investigationId: string): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const row of this.db.prepare('SELECT status, COUNT(*) AS count FROM runs WHERE investigation_id = ? GROUP BY status').all(investigationId) as Array<{ status: string; count: number | bigint }>) counts[row.status] = Number(row.count);
+    return counts;
+  }
+
+  runs(investigationId: string): Array<Record<string, unknown>> {
+    return this.db.prepare('SELECT id, attempt, status, command, image, queued_at, started_at, completed_at, duration_ms, exit_code, failure_kind, failure_message, timed_out, stdout_ref, stderr_ref FROM runs WHERE investigation_id = ? ORDER BY attempt').all(investigationId) as Array<Record<string, unknown>>;
+  }
+
+  events(investigationId: string, limit = 100): Array<Record<string, unknown>> {
+    return this.db.prepare('SELECT id, run_id, test_id, type, timestamp, payload_json FROM events WHERE investigation_id = ? ORDER BY timestamp DESC, id DESC LIMIT ?').all(investigationId, limit).map((row) => { const item = row as { id: string; run_id?: string; test_id?: string; type: string; timestamp: string; payload_json: string }; return { id: item.id, runId: item.run_id, testId: item.test_id, type: item.type, timestamp: item.timestamp, payload: JSON.parse(item.payload_json) }; });
+  }
+
   createAnalysisJob(id: string, investigationId: string, testId: string, provider: string): void {
     this.db.prepare('INSERT INTO analysis_jobs(id, investigation_id, test_id, status, provider, created_at) VALUES (?, ?, ?, \'queued\', ?, ?)').run(id, investigationId, testId, provider, new Date().toISOString());
   }
