@@ -75,6 +75,12 @@ The Docker image installs dependencies from the committed lockfile and runs the 
 
 The execution primitives are available to the TypeScript application through `src/execution/` and `src/services/one-run-service.ts`. Before a real investigation, call `preflight()` with an `InvestigationConfig`; it verifies the repository, Docker daemon, and image without starting the test command. `OneRunService` then records a run, invokes one disposable container, stores stdout/stderr artifacts, parses the adapter result, and finalizes the run record.
 
+With Docker Desktop/Engine running and the pinned image available locally, the end-to-end Phase 1 smoke check is:
+
+```sh
+npm run phase1:smoke
+```
+
 The Docker executor defaults to:
 
 - `--network none` unless configuration explicitly enables networking;

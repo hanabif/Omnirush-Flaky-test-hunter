@@ -58,7 +58,7 @@ export class CliDockerClient implements DockerClient {
       '--pids-limit', String(spec.pidsLimit ?? 256), '--cpus', String(spec.cpus ?? 1),
       '--memory', String(spec.memoryBytes ?? 512 * 1024 * 1024), '--tmpfs', '/tmp:rw,noexec,nosuid,size=128m',
       '--mount', `type=bind,src=${spec.repositoryPath},dst=/workspace,readonly`,
-      '--mount', `type=bind,src=${spec.artifactDirectory},dst=/artifacts,rw`,
+      '--mount', `type=bind,src=${spec.artifactDirectory},dst=/artifacts`,
       '--workdir', spec.command.cwd,
     ];
     for (const [key, value] of Object.entries(spec.command.env)) args.push('--env', `${key}=${value}`);
