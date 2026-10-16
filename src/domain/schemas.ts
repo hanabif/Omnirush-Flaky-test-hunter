@@ -78,3 +78,41 @@ export type RunStatus = z.infer<typeof RunStatusSchema>;
 export type NormalizedTestResult = z.infer<typeof NormalizedTestResultSchema>;
 export type TestAnalysis = z.infer<typeof TestAnalysisSchema>;
 export type Event = z.infer<typeof EventSchema>;
+
+export const CommandSpecSchema = z.object({
+  executable: nonEmpty,
+  args: z.array(z.string()),
+  cwd: nonEmpty,
+  env: z.record(z.string()),
+});
+
+export type CommandSpec = z.infer<typeof CommandSpecSchema>;
+
+export type ContainerFailureKind =
+  | 'docker_unavailable' | 'image_unavailable' | 'permission_denied' | 'invalid_mount'
+  | 'container_start_failed' | 'container_oom' | 'container_killed' | 'executor_timeout' | 'executor_error';
+
+export interface DockerRunSpec {
+  image: string;
+  command: CommandSpec;
+  repositoryPath: string;
+  artifactDirectory: string;
+  network: InvestigationConfig['network'];
+  timeoutMs: number;
+  maxOutputBytes: number;
+  cpus?: number;
+  memoryBytes?: number;
+  pidsLimit?: number;
+}
+
+export interface DockerExecutionResult {
+  started: boolean;
+  containerId?: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  failureKind?: ContainerFailureKind;
+  failureMessage?: string;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+}

@@ -5,8 +5,7 @@ export class ArtifactStore {
   constructor(private readonly root: string, private readonly maxBytes = 1024 * 1024) {}
 
   async put(relativePath: string, content: string | Uint8Array): Promise<string> {
-    const safePath = normalize(relativePath);
-    if (safePath.startsWith('..') || safePath.includes(`..${'\\'}`) || safePath.includes(`..${'/'}`)) throw new Error('Artifact path traversal is not allowed');
+    const safePath = this.safePath(relativePath);
     const bytes = typeof content === 'string' ? Buffer.byteLength(content) : content.byteLength;
     if (bytes > this.maxBytes) throw new Error(`Artifact exceeds ${this.maxBytes} byte limit`);
     const destination = join(this.root, safePath);
@@ -18,6 +17,12 @@ export class ArtifactStore {
   }
 
   read(relativePath: string): Promise<Buffer> {
-    return readFile(join(this.root, relativePath));
+    return readFile(join(this.root, this.safePath(relativePath)));
+  }
+
+  private safePath(relativePath: string): string {
+    const safePath = normalize(relativePath);
+    if (!relativePath || safePath.startsWith('..') || safePath.includes(`..${'\\'}`) || safePath.includes(`..${'/'}`)) throw new Error('Artifact path traversal is not allowed');
+    return safePath;
   }
 }
