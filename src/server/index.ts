@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { InvestigationConfigSchema } from '../domain/schemas.js';
 import { buildReport, renderMarkdown } from '../reporting/report.js';
 import { InvestigationDatabase } from '../persistence/database.js';
@@ -47,4 +48,4 @@ export function createDashboardServer(): ReturnType<typeof createServer> {
   });
 }
 
-if (process.argv[1]?.endsWith('server/index.js')) createDashboardServer().listen(Number(process.env.PORT ?? 4173), process.env.HOST ?? '127.0.0.1', () => console.log(`Dashboard running at http://${process.env.HOST ?? '127.0.0.1'}:${process.env.PORT ?? 4173}`));
+if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) createDashboardServer().listen(Number(process.env.PORT ?? 4173), process.env.HOST ?? '127.0.0.1', () => console.log(`Dashboard running at http://${process.env.HOST ?? '127.0.0.1'}:${process.env.PORT ?? 4173}`));
