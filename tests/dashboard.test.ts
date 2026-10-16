@@ -33,6 +33,9 @@ describe('phase 6 dashboard server', () => {
     const exported = await fetch(`${base}/api/investigations/${id}/report?format=json`);
     expect(exported.status).toBe(200);
     expect(exported.headers.get('content-disposition')).toBe(`attachment; filename="flaky-hunter-${id}.json"`);
+    const markdown = await fetch(`${base}/api/investigations/${id}/report?format=markdown`);
+    expect(markdown.status).toBe(200);
+    expect(markdown.headers.get('content-disposition')).toBe(`attachment; filename="flaky-hunter-${id}.md"`);
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     const database = new InvestigationDatabase(process.env.FLAKY_HUNTER_DB);
     database.close();
